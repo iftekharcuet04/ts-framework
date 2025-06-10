@@ -1,0 +1,5 @@
+.pnpm-store
+package-lock.json
+docker-compose.yml
+pnpm-lock.yml
+node_modules

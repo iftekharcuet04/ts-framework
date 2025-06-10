@@ -1,0 +1,29 @@
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install pnpm globally
+RUN npm install -g pnpm
+
+# Copy dependency descriptors
+COPY package.json pnpm-lock.yaml* ./
+
+# Install dependencies
+RUN pnpm install
+
+# Copy Prisma schema
+COPY prisma ./prisma
+
+# Run prisma generate here after schema and deps are available
+RUN npx prisma generate
+
+# Copy app source
+COPY . .
+
+# Ensure dev tools are installed (ts-node, nodemon, typescript)
+# Optional: Remove if already in devDependencies and covered by pnpm install
+# RUN pnpm add -D ts-node nodemon typescript
+
+# Entrypoint: re-generate + migrate + dev
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && pnpm dev"]

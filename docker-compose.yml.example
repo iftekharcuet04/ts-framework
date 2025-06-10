@@ -1,0 +1,48 @@
+services:
+  backend:
+    container_name: ts-framework-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: "mysql://root:root123@ts-framework-mysql:3306/ts-framework-db"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - ts-framework-mysql
+      - ts-framework-redis
+    stop_grace_period: 1s
+    command: pnpm dev
+
+  ts-framework-mysql:
+    image: mysql:8.0
+    container_name: ts-framework-mysql
+    environment:
+      # NOTE: contains local development only credentials
+      MYSQL_DATABASE: ts-framework-db
+      MYSQL_ROOT_PASSWORD: root123
+
+    volumes:
+      - /var/lib/ts-framework-db-mysql/data:/var/lib/mysql
+    stop_grace_period: 1s
+  # Only for development
+  ts-framework-adminer:
+    image: adminer
+    container_name: ts-framework-adminer
+    links:
+      - ts-framework-mysql:db
+    ports:
+      - 5087:8080
+    stop_grace_period: 1s
+  # Only for development
+  ts-framework-redis:
+    image: redis
+    # NOTE: contains local development only credentials
+    command: "--requirepass redisPassword"
+    stop_grace_period: 1s
+    ports:
+      - "6379:6379"
