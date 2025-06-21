@@ -1,75 +1,89 @@
-import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
-import { parse } from 'url';
-
-type Handler = (
-  req: IncomingMessage,
-  params: Record<string, string>
-) => any | Promise<any>; // Return any data (sync or async)
-
-interface Route {
-  method: string;
-  path: string;
-  handler: Handler;
-  paramNames: string[];
-  regex: RegExp;
-}
+import { createServer, IncomingMessage, Server, ServerResponse } from "http";
+import { parse } from "url";
+import { RadixNode } from "./radix-node";
+import { Handler } from "./types/route-types";
 
 export class Router {
-  private routes: Route[] = [];
+  private root = new RadixNode(''); // root node
+  
   private server?: Server;
 
   public addRoute(method: string, path: string, handler: Handler) {
-    const { regex, paramNames } = this.pathToRegex(path);
-    this.routes.push({ method: method.toUpperCase(), path, handler, regex, paramNames });
+    const segments = path.split('/').filter(Boolean);
+    // console.log('root', this.root);
+    let currentNode = this.root;
+
+    for (const segment of segments) {
+      currentNode = RadixNode.create(segment, currentNode);
+    }
+
+    currentNode.handler = handler;
+    currentNode.method = method.toUpperCase();
   }
 
-  private pathToRegex(path: string) {
-    const paramNames: string[] = [];
-    const regexStr = path.replace(/:([^\/]+)/g, (_, paramName) => {
-      paramNames.push(paramName);
-      return '([^\\/]+)';
-    });
-    return { regex: new RegExp(`^${regexStr}$`), paramNames };
+  private matchRoute(
+    method: string,
+    segments: string[]
+  ): { node: RadixNode; params: Record<string, string> } | null {
+    let currentNode = this.root;
+    const params: Record<string, string> = {};
+  
+    for (const segment of segments) {
+      if (currentNode.staticChildren.has(segment)) {
+        currentNode = currentNode.staticChildren.get(segment)!;
+      }
+      // Then try param match
+      else if (currentNode.paramChild) {
+        currentNode = currentNode.paramChild;
+        if (currentNode.paramName) {
+          params[currentNode.paramName] = segment;
+        }
+      }
+      // No match
+      else {
+        return null;
+      }
+    }
+  
+    if (currentNode.handler && currentNode.method === method) {
+      return { node: currentNode, params };
+    }
+  
+    return null;
   }
+  
 
   private async handle(req: IncomingMessage, res: ServerResponse) {
     const method = req.method?.toUpperCase() || '';
-    const url = req.url || '/';
-    const pathname = parse(url).pathname || '/';
+    const pathname = parse(req.url || '/', true).pathname || '/';
+    const segments = pathname.split('/').filter(Boolean);
 
-    for (const route of this.routes) {
-      if (route.method === method) {
-        const match = route.regex.exec(pathname);
-        if (match) {
-          const params: Record<string, string> = {};
-          route.paramNames.forEach((name, i) => {
-            params[name] = match[i + 1];
-          });
+    const matched = this.matchRoute(method, segments);
 
-          try {
-            const data = await route.handler(req, params);
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(data));
-          } catch (e) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'Internal Server Error' }));
-            console.error(e);
-          }
-          return;
-        }
+    if (matched) {
+      try {
+        const data = await matched.node.handler!(req, matched.params);
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(data));
+      } catch (e) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'Internal Server Error' }));
+        console.error(e);
       }
+    } else {
+      res.statusCode = 404;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Not Found' }));
     }
 
-    res.statusCode = 404;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: 'Not Found' }));
+    console.log(`Request: ${method} ${pathname}`);
   }
 
   public listen(port: number, callback?: () => void) {
     if (this.server) {
-      throw new Error('Server is already running');
+      throw new Error('Server already running');
     }
     this.server = createServer(this.handle.bind(this));
     this.server.listen(port, callback);

@@ -1,5 +1,5 @@
-// src/main.ts
 import './controllers/UserController';
+import './controllers/PostController';
 import { registerDecoratedControllers } from './core/RegisterControllerDecorator';
 import { Router } from './core/router';
 import { initDb } from './db/DBModule';

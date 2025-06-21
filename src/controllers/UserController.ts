@@ -1,9 +1,9 @@
 // src/controllers/UserController.ts
-import { Controller, Get } from '../core/decorator';
+import { Controller, Get } from '../core/controller-decorator';
 import { Inject } from '../core/di';
 import { UserService } from '../services/UserService';
 
-@Controller('/users')
+@Controller('users')
 export class UserController {
   @Inject(UserService)
   private userService!: UserService;

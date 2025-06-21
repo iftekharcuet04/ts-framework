@@ -12,7 +12,7 @@ export class PrismaClientWrapper implements DatabaseClient {
     // 🔁 Return a Proxy for dynamic model access
     return new Proxy(this, {
       get: (target, prop: string) => {
-        console.log("target",target,"++++prop",prop);
+        // console.log("target",target,"++++prop",prop);
         if (prop in target) return (target as any)[prop];
         if (prop in target.client) return (target.client as any)[prop];
         return undefined;

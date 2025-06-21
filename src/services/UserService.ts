@@ -9,7 +9,6 @@ export class UserService {
   }
 
   listUsers() {
-    console.log(this.userRepo);
     return this.userRepo.findAll();
   }
 }
